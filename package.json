@@ -1,0 +1,36 @@
+{
+  "name": "beanify-mongo-store",
+  "version": "1.0.1",
+  "description": "beanify mongodb数据库操作",
+  "main": "index.js",
+  "scripts": {
+    "test": "tap test/**/*.test.js --100 --cov --coverage-report=text",
+    "unit": "tap test/**/*.test.js --100 --cov --coverage-report=lcov"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beanify/beanify-mongo-store.git"
+  },
+  "keywords": [
+    "mongodb",
+    "beanify-mongo",
+    "beanify-mongo-store"
+  ],
+  "author": "xufangyi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/beanify/beanify-mongo-store/issues"
+  },
+  "homepage": "https://github.com/beanify/beanify-mongo-store#readme",
+  "dependencies": {
+    "beanify-store": "^1.0.5",
+    "mongodb": "^3.3.4",
+    "mongodb-extended-json": "^1.10.2"
+  },
+  "devDependencies": {
+    "beanify": "^1.0.8",
+    "beanify-plugin": "^1.0.6",
+    "mongoose": "^5.7.11",
+    "tap": "^14.9.2"
+  }
+}
