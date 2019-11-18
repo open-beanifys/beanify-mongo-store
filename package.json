@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "tap test/**/*.test.js --100 --cov --coverage-report=text",
-    "unit": "tap test/**/*.test.js --100 --cov --coverage-report=lcov"
+    "unit": "tap test/index.test.js --100 --cov --coverage-report=lcov"
   },
   "repository": {
     "type": "git",
@@ -23,7 +23,7 @@
   },
   "homepage": "https://github.com/beanify/beanify-mongo-store#readme",
   "dependencies": {
-    "beanify-store": "^1.0.5",
+    "beanify-store": "^1.0.6",
     "mongodb": "^3.3.4",
     "mongodb-extended-json": "^1.10.2"
   },

@@ -18,10 +18,11 @@ const beanify = new Beanify({
 })
 
 
-let topic = 'mongo'
+let topic = 'runoob'
 const testCollection = 'site'
 
 const options = {
+  useDbAsTopicSuffix: true,
   url: "mongodb://127.0.0.1:27017/runoob"
 }
 
@@ -402,39 +403,6 @@ beanify.ready((err) => {
               t.ok(res.name)
             }
           )
-        }
-      )
-    })
-
-    tap.test('count', (t) => {
-      t.plan(3)
-      beanify.inject(
-        {
-          url: `${topic}.count`,
-          body: {
-            collection: testCollection,
-            query: {}
-          }
-        }, function (err, res) {
-          t.error(err)
-          t.ok(res)
-          t.equal(10, res)
-        }
-      )
-    })
-
-    tap.test('exists', (t) => {
-      t.plan(2)
-      beanify.inject(
-        {
-          url: `${topic}.exists`,
-          body: {
-            collection: testCollection,
-            query: {}
-          }
-        }, function (err, res) {
-          t.error(err)
-          t.ok(res)
         }
       )
     })

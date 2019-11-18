@@ -5,8 +5,6 @@ const Mongodb = require('mongodb')
 const ObjectID = Mongodb.ObjectID
 const MongoStore = require('./store')
 const StorePattern = require('beanify-store/pattern')
-const serialize = require('mongodb-extended-json').serialize
-const deserialize = require('mongodb-extended-json').deserialize
 
 module.exports = Bp((beanify, opts, done) => {
 
@@ -32,138 +30,87 @@ module.exports = Bp((beanify, opts, done) => {
       mongoDrive
     })
 
-
     //服务退出释放mongodb连接
     beanify.addHook('onClose', (ctx, done) => {
       console.log('Mongodb connection closed!')
-      db.close(done)
+      mongoDrive.close(done)
     })
 
-    beanify.route(
-      {
-        url: `${topic}.dropCollection`,
-        schema: {
-          request: {
-            type: 'object',
-            properties: {
-              body: {
-                type: 'object',
-                properties: {
-                  collection: { type: 'string' }
-                },
-                required: ['collection']
-              }
-            }
-          }
-        }
-      }, function (req, res) {
-        res(null, req)
-        dbase.collection(req.body.collection).drop(function (err) {
-          console.log('===============', `${topic}.dropCollection`, req.body.collection)
-        })
+    beanify.route(StorePattern.drop(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
+      const store = new MongoStore(collection, opts)
+      
+      store.drop(res)
+    })
 
-      })
+    beanify.route(StorePattern.createCollection(topic), function (req, res) {
+      const store = new MongoStore(dbase, opts)
+      
+      store.createCollection(req, res)
+    })
 
-    beanify.route(
-      {
-        url: `${topic}.createCollection`,
-        schema: {
-          request: {
-            type: 'object',
-            properties: {
-              body: {
-                type: 'object',
-                properties: {
-                  collection: { type: 'string' }
-                },
-                required: ['collection']
-              }
-            }
-          }
-        }
-      }, function (req, res) {
-        dbase.createCollection(req.collection, req.options).then(() => true).catch(() => false)
-        res(null, req)
-      })
-
-    beanify.route(StorePattern.create(topic), function (req) {
+    beanify.route(StorePattern.create(topic), function (req, res) {
       const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
-      req.data = deserialize(req.body.data)
-
-      return store.create(req)
+      
+      store.create(req, res)
     })
 
-    beanify.route(StorePattern.update(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.update(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
-      req.query = deserialize(req.query)
-
-      return store
-        .update(req, deserialize(req.data))
-        .then(resp => resp.value)
-        .then(preResponseHandler)
+      
+      store.update(req, res)
     })
 
-    beanify.route(StorePattern.updateById(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.updateById(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
 
-      return store
-        .updateById(req, deserialize(req.data))
-        .then(resp => resp.value)
-        .then(preResponseHandler)
+      store.updateById(req, res)
     })
 
-    beanify.route(StorePattern.remove(topic), function (req) {
-      const collection = dbase.collection(req.collection)
-      const store = new MongoStore(collection, opts)
-      store.ObjectID = ObjectID
-      req.query = deserialize(req.query)
-
-      return store.remove(req)
-    })
-
-    beanify.route(StorePattern.removeById(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.remove(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
 
-      return store
-        .removeById(req)
-        .then(resp => resp.value)
-        .then(preResponseHandler)
+      store.remove(req, res)
     })
 
-    beanify.route(StorePattern.replace(topic), function (req) {
-      const collection = dbase.collection(req.collection)
-      const store = new MongoStore(collection, opts)
-      store.ObjectID = ObjectID
-      req.query = deserialize(req.query)
-
-      return store.replace(req, deserialize(req.data))
-    })
-
-    beanify.route(StorePattern.replaceById(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.removeById(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
 
-      return store
-        .replaceById(req, deserialize(req.data))
-        .then(resp => resp.value)
-        .then(preResponseHandler)
+      store.removeById(req, res)
     })
 
-    beanify.route(StorePattern.findById(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.replace(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
 
-      return store.findById(req).then(preResponseHandler)
+      store.replace(req, res)
+    })
+
+    beanify.route(StorePattern.replaceById(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
+      const store = new MongoStore(collection, opts)
+      store.ObjectID = ObjectID
+
+      store.replaceById(req, res)
+    })
+
+    beanify.route(StorePattern.findById(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
+      const store = new MongoStore(collection, opts)
+      store.ObjectID = ObjectID
+
+      store.findById(req, res)
     })
 
 
@@ -171,27 +118,25 @@ module.exports = Bp((beanify, opts, done) => {
       const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
-      req.body.query = deserialize(req.body.query)
-      store.find(req, req.body.options, res)
+
+      store.find(req, res)
 
     })
 
-    beanify.route(StorePattern.count(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.count(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
-      req.query = deserialize(req.query)
 
-      return store.count(req, req.options)
+      store.count(req, res)
     })
 
-    beanify.route(StorePattern.exists(topic), function (req) {
-      const collection = dbase.collection(req.collection)
+    beanify.route(StorePattern.exists(topic), function (req, res) {
+      const collection = dbase.collection(req.body.collection)
       const store = new MongoStore(collection, opts)
       store.ObjectID = ObjectID
-      req.query = deserialize(req.query)
 
-      return store.exists(req, req.options)
+      store.exists(req, res)
     })
 
     console.log('DB connected!')

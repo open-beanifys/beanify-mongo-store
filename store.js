@@ -1,7 +1,8 @@
 'use strict'
 
 const Store = require('beanify-store')
-
+const serialize = require('mongodb-extended-json').serialize
+const deserialize = require('mongodb-extended-json').deserialize
 
 class MongoStore extends Store {
 
@@ -9,104 +10,109 @@ class MongoStore extends Store {
     super(driver, options)
   }
 
-  preResponseHandler(result){
-    if (this.options.serializeResult === true) {
-      return serialize(result)
-    }
-    return result
+  drop(cb) {
+    this._driver.drop((err, result) => {
+      if (err) {
+        cb(null, false)
+      } else {
+        cb(err, true)
+      }
+    })
+  }
+
+  createCollection(req, cb) {
+    this._driver.createCollection(req.body.collection, req.body.options, (err, result) => {
+      if (err) {
+        cb(null, false)
+      } else {
+        cb(err, true)
+      }
+    })
   }
 
   create(req, cb) {
-    if (req.data instanceof Array) {
-      let op = null
+    const data = deserialize(req.body.data)
+    if (data instanceof Array) {
       if (this.options.store.create) {
-        op = this._driver.insertMany(req.data, this.options.store.create)
+        this._driver.insertMany(data, this.options.store.create, (err, result) => {
+          cb(err, { ids: result.insertedIds })
+        })
       } else {
-        op = this._driver.insertMany(req.data)
+        this._driver.insertMany(data, (err, result) => {
+          cb(err, { ids: result.insertedIds })
+        })
       }
-      return op.then(resp => {
-        return {
-          _ids: resp.insertedIds
-        }
-      })
-    } else if (req.data instanceof Object) {
-      let op = null
+    } else if (data instanceof Object) {
       if (this.options.store.create) {
-        op = this._driver.insertOne(req.data, this.options.store.create)
+        this._driver.insertOne(data, this.options.store.create, (err, result) => {
+          cb(err, { id: result.insertedId.toString() })
+        })
       } else {
-        op = this._driver.insertOne(req.data)
+        this._driver.insertOne(data, (err, result) => {
+          cb(err, { id: result.insertedId.toString() })
+        })
       }
-      return op.then(resp => {
-        return {
-          _id: resp.insertedId.toString()
-        }
-      })
     }
   }
 
   remove(req, cb) {
-    let op = null
+    const query = deserialize(req.body.query)
     if (this.options.store.remove) {
-      op = this._driver.deleteMany(req.query, this.options.store.remove)
+      this._driver.deleteMany(query, this.options.store.remove, (err, result) => {
+        cb(err, result)
+      })
     } else {
-      op = this._driver.deleteMany(req.query)
+      this._driver.deleteMany(query, (err, result) => {
+        cb(err, result)
+      })
     }
-
-    return op.then(resp => {
-      return {
-        deletedCount: resp.deletedCount
-      }
-    })
   }
 
-  removeById(req) {
+  removeById(req, cb) {
     if (this.options.store.removeById) {
-      return this._driver.findOneAndDelete(
-        {
-          _id: this.ObjectID(req.id)
-        },
-        this.options.store.removeById
-      )
+      this._driver.findOneAndDelete({ _id: this.ObjectID(req.body.id) }, this.options.store.removeById, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
+    } else {
+      this._driver.findOneAndDelete({
+        _id: this.ObjectID(req.body.id)
+      }, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
     }
-
-    return this._driver.findOneAndDelete({
-      _id: this.ObjectID(req.id)
-    })
   }
 
-  update(req, data) {
+  update(req, cb) {
+    const query = deserialize(req.body.query)
+    const data = deserialize(req.body.data)
     if (this.options.store.update) {
-      return this._driver.findOneAndUpdate(
-        req.query,
-        data,
-        this.options.store.update
-      )
+      this._driver.findOneAndUpdate(query, data, this.options.store.update, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
+    } else {
+      this._driver.findOneAndUpdate(query, data, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
     }
-
-    return this._driver.findOneAndUpdate(req.query, data)
   }
 
-  updateById(req, data) {
+  updateById(req, cb) {
+    const data = deserialize(req.body.data)
     if (this.options.store.updateById) {
-      return this._driver.findOneAndUpdate(
-        {
-          _id: this.ObjectID(req.id)
-        },
-        data,
-        this.options.store.updateById
-      )
+      this._driver.findOneAndUpdate({ _id: this.ObjectID(req.body.id) }, data, this.options.store.updateById, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
+    } else {
+      this._driver.findOneAndUpdate({ _id: this.ObjectID(req.body.id) }, data, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
     }
-
-    return this._driver.findOneAndUpdate(
-      {
-        _id: this.ObjectID(req.id)
-      },
-      data
-    )
   }
 
-  find(req, options, cb) {
-    let cursor = this._driver.find(req.body.query)
+  find(req, cb) {
+    const query = deserialize(req.body.query)
+    const options = deserialize(req.body.options)
+    let cursor = this._driver.find(query)
     if (options) {
       if (options.limit) {
         cursor = cursor.limit(options.limit)
@@ -121,87 +127,95 @@ class MongoStore extends Store {
         cursor = cursor.sort(options.orderBy)
       }
     }
-
-    cursor.toArray(function (err, result) {
+    
+    cursor.toArray((err, result) => {
       const data = Object.assign(
         {
           data: result
         },
         options
       )
-      cb(err, data)
+      cb(err, preResponseHandler(data, this.options.serializeResult))
     })
   }
 
-  findById(req) {
+  findById(req, cb) {
     if (this.options.store.findById) {
-      return this._driver.findOne(
-        {
-          _id: this.ObjectID(req.id)
-        },
-        this.options.store.findById
-      )
-    }
-
-    return this._driver.findOne({
-      _id: this.ObjectID(req.id)
-    })
-  }
-
-  replace(req, data) {
-    let op = null
-    if (this.options.store.replace) {
-      op = this._driver.updateMany(req.query, data, this.options.store.replace)
+      this._driver.findOne({ _id: this.ObjectID(req.body.id) }, this.options.store.findById, (err, result) => {
+        cb(err, preResponseHandler(result, this.options.serializeResult))
+      })
     } else {
-      op = this._driver.updateMany(req.query, data)
+      this._driver.findOne({ _id: this.ObjectID(req.body.id) }, (err, result) => {
+        cb(err, preResponseHandler(result, this.options.serializeResult))
+      })
     }
-
-    return op.then(resp => {
-      return {
-        matchedCount: resp.matchedCount,
-        modifiedCount: resp.modifiedCount,
-        upsertedCount: resp.upsertedCount,
-        upsertedId: resp.upsertedId
-      }
-    })
   }
 
-  replaceById(req, data) {
+  replace(req, cb) {
+    const query = deserialize(req.body.query)
+    const data = deserialize(req.body.data)
+    if (this.options.store.replace) {
+      this._driver.updateMany(query, data, this.options.store.replace, (err, result) => {
+        cb(err, {
+          matchedCount: result.matchedCount, modifiedCount: result.modifiedCount,
+          upsertedCount: result.upsertedCount, upsertedId: result.upsertedId
+        })
+      })
+    } else {
+      this._driver.updateMany(query, data, (err, result) => {
+        cb(err, {
+          matchedCount: result.matchedCount, modifiedCount: result.modifiedCount,
+          upsertedCount: result.upsertedCount, upsertedId: result.upsertedId
+        })
+      })
+    }
+  }
+
+  replaceById(req, cb) {
+    const data = deserialize(req.body.data)
     if (this.options.store.replaceById) {
-      return this._driver.findOneAndReplace(
-        {
-          _id: this.ObjectID(req.id)
-        },
-        data,
-        this.options.store.replaceById
-      )
+      this._driver.findOneAndReplace({ _id: this.ObjectID(req.body.id) }, data, this.options.store.replaceById, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
+    } else {
+      this._driver.findOneAndReplace({ _id: this.ObjectID(req.body.id) }, data, (err, result) => {
+        cb(err, preResponseHandler(result.value, this.options.serializeResult))
+      })
     }
-
-    return this._driver.findOneAndReplace(
-      {
-        _id: this.ObjectID(req.id)
-      },
-      data
-    )
   }
 
-  count(req, options) {
+  count(req, cb) {
+    const query = deserialize(req.body.query)
     if (this.options.store.count) {
-      return this._driver.count(req.query, this.options.store.count)
+      this._driver.count(query, this.options.store.count, (err, result) => {
+        cb(err, result)
+      })
+    } else {
+      this._driver.count(query, (err, result) => {
+        cb(err, result)
+      })
     }
-
-    return this._driver.count(req.query)
   }
 
-  exists(req) {
+  exists(req, cb) {
+    const query = deserialize(req.body.query)
     if (this.options.store.exists) {
-      return this._driver
-        .findOne(req.query, this.options.store.exists)
-        .then(resp => !!resp)
+      this._driver.findOne(query, this.options.store.exists, (err, result) => {
+        cb(err, !!result)
+      })
+    } else {
+      this._driver.findOne(query, (err, result) => {
+        cb(err, !!result)
+      })
     }
-
-    return this._driver.findOne(req.query).then(resp => !!resp)
   }
+}
+
+function preResponseHandler(result, serializeResult) {
+  if (serializeResult === true) {
+    return serialize(result)
+  }
+  return result
 }
 
 module.exports = MongoStore
